@@ -1,0 +1,5 @@
+Leiningen.gitignore
+
+.clj-kondo/.cache
+.cpcache/
+.lsp
