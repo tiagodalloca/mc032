@@ -7,7 +7,7 @@
   (-schedule! [it f-id args] "Returns a promesa.protocols/IPromise"))
 
 (defprotocol IPoolNodePicker
-  (-pick [it f-id]))
+  (-pick [it f-id] "Returns a promesa.protocols/IPromise"))
 
 (defprotocol IRPCInterface
   (-invoke! [this node-ref-id f-id args] "Returns promesa.protocols/IPromise"))
@@ -50,8 +50,9 @@
      rpc-interface]
   IScheduler
   (-schedule! [_ f-id args]
-    (let [node-ref-id (pick pool-node-picker f-id)]
-      (invoke! rpc-interface node-ref-id f-id args))))
+    (p/future
+      (let [node-ref-id @(pick pool-node-picker f-id)]
+        @(invoke! rpc-interface node-ref-id f-id args)))))
 
 (def f-id-schema uuid?)
 
@@ -82,6 +83,7 @@
     [pool-db-map*]
   IPoolNodePicker
   (-pick [_ f-id]
-    (let [available-nodes (get @pool-db-map* f-id)]
-      (rand-nth (seq available-nodes)))))
+    (p/future
+      (let [available-nodes (get @pool-db-map* f-id)]
+        (rand-nth (seq available-nodes))))))
 
