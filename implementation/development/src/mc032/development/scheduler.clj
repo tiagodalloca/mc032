@@ -1,9 +1,14 @@
 (ns mc032.development.scheduler
-  (:require [mc032.implementation.scheduler :as scheduler]
+  (:require [mc032.implementation.scheduler :as impl.scheduler]
+            [mc032.implementation.function :as impl.function]
+            [mc032.implementation.message-system-client :as impl.msg]
+            [mc032.implementation.rpc-interface :as impl.rpc]
+            [mc032.implementation.pool-node-picker :as impl.pool-node-picker]
             [integrant.core :as ig]
             [integrant.repl :refer [clear go halt init prep reset reset-all]]
             [integrant.repl.state :as state]
-            [promesa.core :as p]))
+            [promesa.core :as p]
+            [promesa.exec.csp :as sp]))
 
 (def config
   {:implementation/stateful-scheduler
@@ -11,9 +16,12 @@
     :rpc-interface (ig/ref :implementation/mock-rpc-interface)}
 
    :implementation/mock-rpc-interface
-   {:f-id->function-map* (ig/ref :implementation/f-id->function-map*)}
+   {:f-id->function-map* (ig/ref :implementation/f-id->function-map*)
+    :msg-sys-client (ig/ref :implementation/mock-message-system-client)}
 
    :implementation/f-id->function-map* {}
+
+   :implementation/mock-message-system-client {}
 
    :implementation/naive-map-db-pool-node-picker
    {:pool-db-map*  (ig/ref :implementation/pool-db-map*)}
@@ -22,24 +30,24 @@
 
 (defmethod ig/init-key :implementation/stateful-scheduler
   [_ {:keys [pool-node-picker rpc-interface]}]
-  (scheduler/->StatefulScheduler pool-node-picker rpc-interface))
-
-(comment
-  (defmethod ig/halt-key! :implementation/stateful-scheduler [_ scheduler]
-    nil))
+  (impl.scheduler/stateful-scheduler pool-node-picker rpc-interface))
 
 (defmethod ig/init-key :implementation/mock-rpc-interface
-  [_ {:keys [f-id->function-map*]}]
-  (scheduler/->MockRPCInterace f-id->function-map*))
+  [_ {:keys [f-id->function-map* msg-sys-client]}]
+  (impl.rpc/mock-rpc-interface f-id->function-map* msg-sys-client))
 
 (defmethod ig/init-key :implementation/f-id->function-map*
   [_ _]
   (atom {"f1" #'+
          "f2" #'-}))
 
+(defmethod ig/init-key :implementation/mock-message-system-client
+  [_ _]
+  (impl.msg/mock-message-system-client))
+
 (defmethod ig/init-key :implementation/naive-map-db-pool-node-picker
   [_ {:keys [pool-db-map*]}]
-  (scheduler/->NaiveMapDBPoolNodePicker pool-db-map*))
+  (impl.pool-node-picker/naive-map-db-pool-node-picker pool-db-map*))
 
 (defmethod ig/init-key :implementation/pool-db-map*
   [_ _]
@@ -57,5 +65,19 @@
   (def scheduler
     (get state/system :implementation/stateful-scheduler))
 
-  @(scheduler/-schedule! scheduler "f2" [1 2 3]))
+  (def msg-sys-client
+    (get state/system :implementation/mock-message-system-client))
+
+  (def f-invocation (impl.function/f-invocation "f2" (random-uuid)))
+
+  (let [[sub-id sub-ch]
+        (impl.msg/sub! msg-sys-client (impl.function/f-invocation-result-id f-invocation))]
+    (def sub-id sub-id)
+    (def sub-ch sub-ch))
+
+  (sp/go
+    (let [result (sp/<! sub-ch)]
+      (println (str "Sending invocation result to client: " result))))
+
+  (def f-invocatoin-id @(impl.scheduler/schedule! scheduler f-invocation [1 2 3])))
 
