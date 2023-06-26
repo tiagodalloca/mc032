@@ -39,7 +39,10 @@
 (defmethod ig/init-key :implementation/f-id->function-map*
   [_ _]
   (atom {"f1" #'+
-         "f2" #'-}))
+         "f2" #'-
+         "f-juliana" (fn [& args]
+                       (println "Multiplicação da juliana args: " args)
+                       (apply * args))}))
 
 (defmethod ig/init-key :implementation/mock-message-system-client
   [_ _]
