@@ -55,7 +55,8 @@
 (defmethod ig/init-key :implementation/pool-db-map*
   [_ _]
   (atom {"f1" #{"n1" "n2"}
-         "f2" #{"n1"}}))
+         "f2" #{"n1"}
+         "f-juliana" #{"worker-especial"}}))
 
 (integrant.repl/set-prep! (constantly config))
 
@@ -71,7 +72,7 @@
   (def msg-sys-client
     (get state/system :implementation/mock-message-system-client))
 
-  (def f-invocation (impl.function/f-invocation "f2" (random-uuid)))
+  (def f-invocation (impl.function/f-invocation "f-juliana" (random-uuid)))
 
   (let [[sub-id sub-ch]
         (impl.msg/sub! msg-sys-client (impl.function/f-invocation-result-id f-invocation))]
